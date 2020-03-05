@@ -1,0 +1,139 @@
+---
+title: "Betelgeuse: Varable Star Validation Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+    runtime: shiny
+---
+
+```{r global, include=FALSE}
+library(flexdashboard)
+library(rsconnect)
+library(tidyverse)
+library(plotly)
+# library(shiny) # This may or may not be required - I just like the code autocomplete
+library(DT) # This builds a reactive datatable. It's probably the most common HTML table package.
+library(lubridate)
+```
+
+```{r}
+## Thank You Tan @ Slack for this code
+## @_TanHo, Data @ Calvan, DynastyProcess.com
+# mydata <- data.table::fread("./sample.csv")
+rm(list=ls())
+mydata <- read_csv("star-data.csv")  # your code is fine, this just happens to point to where I put the file
+mydata$Ymd <- insol::JD(mydata$jd,inverse = TRUE)
+mydata$Ymd <- as.Date(mydata$Ymd)
+mydata$Year <- lubridate::year(mydata$Ymd)
+mydata$Month <- lubridate::month(mydata$Ymd)
+mydata$yrmonth <- paste0(lubridate::year(mydata$Ymd), " ", lubridate::month(mydata$Ymd))
+
+mydata$magnitude <- as.numeric( gsub("<","", mydata$magnitude) ) + 0.1
+
+```
+# Home
+
+## Column {.sidebar}
+
+
+### 
+```{r Select Inputs}
+
+# Got rid of some of the intermediate calculations here and just did it in-line. 
+# 
+# I see you used distinct - it gave you a dataframe of values.
+# The unique function gives you a character vector instead.
+# 
+# You can return multiple outputs from a code chunk :)
+
+selectInput(inputId ="DropDownStar",label="Please Enter Star Name",
+              choices = unique(mydata$star_name),selected="R AQL")
+
+selectInput(inputId ="DropDownBand",label="Please Select Band",
+              choices =unique(mydata$band),selected="Vis.")
+
+selectInput(inputId ="DropDownYear",label="Select starting  Year",
+              choices =unique(mydata$Year))
+
+```
+
+```{r}
+
+### Okay - rule of thumb: if you need to get into rlang::syms, enquo, quo etc -  you are probably overcomplicating the problem!
+### Avoid it with a ten foot pole if at all possible (it's what I do!) 
+
+# alf_ori <-reactive(
+#   mydata %>% select(!!! rlang::syms(input$star_name) & !!! rlang::syms(input$band)) 
+# )
+# head(alf_ori)
+# 
+
+# Two problems here: 
+# 
+# 1) You're missing curly brackets. Curly brackets let you evaluate things in a dplyr pipe and feed the end result into the original function, which in this case is the reactive function. 
+# 2) You were calling input$star_name when earlier you named the inputID input$DropDownStar! [and DropDownBand!]
+
+alf_ori <-reactive({
+mydata %>% 
+    filter(star_name == input$DropDownStar & band == input$DropDownBand & Year >=input$DropDownYear) 
+})
+
+```
+
+## Column {data-width=750}
+
+### Yearly Box Plots of Magnitudes
+
+```{r}
+
+## So the curly bracket issue returns here: any time you need to pipe something in the middle of another function, curly is required (in this case, wrapping the renderPlotly.)
+## 
+## New issue: alf_ori is a REACTIVE object. A reactive object is actually a FUNCTION that outputs a specific object based on other conditions in the app - in this case, based on your input filters. 
+## This means that to access the state of the object at any given time, you need to call it as a function - i.e. with brackets after the name. 
+## 
+## In this case - alf_ori()
+renderPlotly({
+  alf_ori() %>%
+    mutate(yrmonth = fct_reorder(yrmonth,Month),
+           yrmonth = fct_reorder(yrmonth,Year)) %>%
+    plot_ly() %>%
+    add_boxplot(x=~yrmonth,y=~magnitude)
+})
+
+
+
+
+# renderPlotly({
+# alf_ori() %>% 
+#   plot_ly() %>%
+#   add_boxplot(x=~yrmonth,y=~magnitude)  
+# })
+
+
+
+alf_ori_monthly <-reactive({ alf_ori() %>%
+  group_by(year_month=yrmonth) %>%
+             summarize( Mean = round(mean(magnitude),digits=1),
+             Brighter = round(Mean -1,digits = 1),
+             Fainter = round(Mean +1,digits= 1),
+             Obs = n()) %>% 
+            mutate(Verify = case_when(
+        (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) %>%
+        filter(Verify =="Yes") %>% arrange(Year,Month)
+})
+# Adding a datatable to help you visualize that the filters are working correctly.
+
+br()
+h2("Datatable")
+br()
+
+renderDT({
+  alf_ori_monthly() %>% 
+       datatable(rownames = FALSE) 
+})
+```
+```{r}
+
+```
+
