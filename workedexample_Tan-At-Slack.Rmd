@@ -14,6 +14,7 @@ library(tidyverse)
 library(plotly)
 library(shiny) # This may or may not be required - I just like the code autocomplete
 library(DT) # This builds a reactive datatable. It's probably the most common HTML table package.
+library(lubridate)
 ```
 
 ```{r}
@@ -102,6 +103,14 @@ br()
 
 renderDT({
   alf_ori() %>% 
+    group_by(Month=floor_date(Ymd, "month")) %>%
+  summarize( Mean = round(mean(magnitude),digits=1),
+             Brighter = round(Mean -1,digits = 1),
+             Fainter = round(Mean +1,digits= 1),
+             Obs = n()) %>% 
+            mutate(Verify = case_when(
+        (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) %>%
+        filter(Verify =="Yes") %>%
     datatable(rownames = FALSE)
 })
 ```
