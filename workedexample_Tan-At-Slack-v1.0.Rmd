@@ -54,7 +54,7 @@ selectInput(inputId ="DropDownBand",label="Please Select Band",
               choices =unique(mydata$band),selected="Vis.")
 
 selectInput(inputId ="DropDownYear",label="Select starting  Year",
-              choices =unique(mydata$Year))
+              choices =unique(mydata$Year),selected=2000)
 
 ```
 
@@ -112,25 +112,45 @@ renderPlotly({
 
 
 
-alf_ori_monthly <-reactive({ alf_ori() %>%
-  group_by(year_month=yrmonth) %>%
-             summarize( Mean = round(mean(magnitude),digits=1),
-             Brighter = round(Mean -1,digits = 1),
-             Fainter = round(Mean +1,digits= 1),
-             Obs = n()) %>% 
-            mutate(Verify = case_when(
-        (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) %>%
-        filter(Verify =="Yes") %>% arrange(Year,Month)
-})
+# alf_ori_monthly <-reactive({ alf_ori() %>%
+#   group_by(year_month=yrmonth) %>%
+#              summarize( Mean = round(mean(magnitude),digits=1),
+#              Brighter = round(Mean -1,digits = 1),
+#              Fainter = round(Mean +1,digits= 1),
+#              Obs = n()) %>% 
+#             mutate(Verify = case_when(
+#         (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) %>%
+#         filter(Verify =="Yes")
+# })
 # Adding a datatable to help you visualize that the filters are working correctly.
+# More magic by Tan @ Slack
+
+alf_ori_monthly <-reactive({ 
+  alf_ori() %>%
+    group_by(year_month=yrmonth,Year,Month) %>%
+    summarize(Mean = round(mean(magnitude),digits=1),
+               Brighter = round(Mean -1,digits = 1),
+               Fainter = round(Mean +1,digits= 1),
+               Obs = n()) %>%
+    ungroup() %>% 
+    mutate(Verify = case_when(
+      (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) %>%
+    filter(Verify =="Yes") %>% arrange(Year,Month)
+})
+
+
+
+
+
+
 
 br()
 h2("Datatable")
 br()
 
 renderDT({
-  alf_ori_monthly() %>% 
-       datatable(rownames = FALSE) 
+  alf_ori_monthly()  %>% datatable()
+    
 })
 ```
 ```{r}
