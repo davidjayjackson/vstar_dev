@@ -1,0 +1,70 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(insol)
+library(rsconnect)
+library(DT)
+library(plotly)
+```
+# Home
+
+## Column {.sidebar}
+
+
+```{r}
+fileInput("file1", "Choose CSV File",
+        accept = c(
+          "text/csv",
+          "text/comma-separated-values,text/plain",
+          ".csv"))
+mydata <- reactive({
+    req(input$file1)
+    inFile <- input$file1
+    if(is.null(inFile)){return(NULL)}
+    read_csv(inFile$datapath) %>% 
+    mutate(Ymd =insol::JD(JD,inverse = TRUE)) %>%
+       mutate(Ymd = as.Date(Ymd)) %>% 
+      select(Ymd,Star_Name,Band,Magnitude,Validation_Flag) %>%
+      filter(Band=="Vis.")
+      
+})   
+
+```
+
+
+## Column {data-width=750}
+
+```{r}
+starDust <- reactive({ 
+  mydata() %>%
+    group_by(Ymd) %>%
+        summarize(Mean = round(mean(Magnitude),digits=1),
+               Brighter = round(Mean -1,digits = 1),
+               Fainter = round(Mean +1,digits= 1),
+               Obs = n()) %>% 
+    ungroup() %>% 
+    mutate(Verify = case_when(
+      (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) })
+  ```
+
+
+```{r}
+  
+  renderDT({starDust() %>% datatable()})
+```
+```{r}
+renderPlotly({
+  mydata() %>% plot_ly() %>% add_boxplot(x=~Ymd,y=~Magnitude) %>%
+    layout(boxmode = "group")
+})
+
+
