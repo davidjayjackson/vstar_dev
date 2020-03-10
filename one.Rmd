@@ -3,7 +3,8 @@ title: "Untitled"
 output: 
   flexdashboard::flex_dashboard:
     orientation: columns
-    vertical_layout: fill
+#    vertical_layout: fill
+    vertical_layout: scroll
     runtime: shiny
 ---
 
@@ -33,6 +34,7 @@ mydata <- reactive({
     read_csv(inFile$datapath) %>% 
     mutate(Ymd =insol::JD(JD,inverse = TRUE)) %>%
        mutate(Ymd = as.Date(Ymd)) %>% 
+      mutate(Magnitude = as.numeric( gsub("<","", Magnitude) ) + 0.99) %>%
       select(Ymd,Star_Name,Band,Magnitude,Validation_Flag) %>%
       filter(Band=="Vis.")
       
@@ -55,16 +57,30 @@ starDust <- reactive({
     mutate(Verify = case_when(
       (Brighter <  Mean -1) | (Fainter > Mean + 1) ~ "Yes",TRUE ~ "No")) })
   ```
-
-
-```{r}
   
-  renderDT({starDust() %>% datatable()})
+  
+```{r}
+    renderDT({starDust() %>% datatable()})
 ```
+
+### Daily Box Plots
+
 ```{r}
 renderPlotly({
-  mydata() %>% plot_ly() %>% add_boxplot(x=~Ymd,y=~Magnitude) %>%
-    layout(boxmode = "group")
+  mydata() %>% plot_ly() %>% add_boxplot(x=~Ymd,y=~Magnitude) %>% layout(yaxis = list(autorange = "reversed"))
+    
+    
 })
+```
 
 
+### Scater Plot with Validation Flag
+
+```{r}
+renderPlotly({mydata() %>% plot_ly(x=~Ymd,y=~Magnitude) %>%
+    add_trace(type="scatter",mode="markers",color=~Validation_Flag,
+              colors = "Set1") %>%layout(yaxis = list(autorange = "reversed"))
+            
+    
+})
+```
