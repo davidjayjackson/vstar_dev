@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Variable(Visual) Star Varifications"
 output: 
   flexdashboard::flex_dashboard:
     orientation: columns
@@ -33,7 +33,7 @@ mydata <- reactive({
     if(is.null(inFile)){return(NULL)}
     read_csv(inFile$datapath) %>% 
     mutate(Ymd =insol::JD(JD,inverse = TRUE)) %>%
-       mutate(Ymd = as.Date(Ymd)) %>% 
+       mutate(Ymd = as.Date(Ymd))  %>%
       mutate(Magnitude = as.numeric( gsub("<","", Magnitude) ) + 0.99) %>%
       select(Ymd,Star_Name,Band,Magnitude,Validation_Flag) %>%
       filter(Band=="Vis.")
@@ -48,7 +48,7 @@ mydata <- reactive({
 ```{r}
 starDust <- reactive({ 
   mydata() %>%
-    group_by(Ymd) %>%
+    group_by(Ymd,Validation_Flag) %>%
         summarize(Mean = round(mean(Magnitude),digits=1),
                Brighter = round(Mean -1,digits = 1),
                Fainter = round(Mean +1,digits= 1),
@@ -60,8 +60,29 @@ starDust <- reactive({
   
   
 ```{r}
-    renderDT({starDust() %>% datatable()})
+#     renderDT({starDust() %>% arrange(desc(Verify)) %>% 
+#         datatable(filter = 'top',
+#          extensions = 'Buttons', options = list(
+#     dom = 'Bfrtip',
+#     buttons = c('csv', 'excel', 'pdf')))
+#   
+#                   
+# })
 ```
+
+### Scater Plot with Validation Flag
+
+```{r}
+renderPlotly({mydata() %>% plot_ly(x=~Ymd,y=~Magnitude) %>%
+    add_trace(type="scatter",mode="markers",color=~Validation_Flag,
+              colors = "Set1")   %>%
+            layout(yaxis = list(autorange = "reversed"))
+            
+    
+})
+```
+
+
 
 ### Daily Box Plots
 
@@ -72,15 +93,10 @@ renderPlotly({
     
 })
 ```
-
-
-### Scater Plot with Validation Flag
-
 ```{r}
-renderPlotly({mydata() %>% plot_ly(x=~Ymd,y=~Magnitude) %>%
-    add_trace(type="scatter",mode="markers",color=~Validation_Flag,
-              colors = "Set1") %>%layout(yaxis = list(autorange = "reversed"))
-            
-    
-})
-```
+  renderDT({starDust() %>% arrange(desc(Verify)) %>% 
+        datatable(filter = 'top',editable = TRUE)})
+  
+  
+  
+  ```
